@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using FortRise;
+using HarmonyLib;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Monocle;
@@ -13,9 +15,9 @@ namespace TFModFortRiseRecord
   // des inputs/positions, puis un enqueue non bloquant.
   //
   // Source des images : Engine.Instance.Screen.RenderTarget, le buffer compose du
-  // jeu (le meme que le systeme de replay), capture APRES le rendu (hook post-orig
-  // sur Engine.Draw), quand il n'est plus la cible active et peut donc etre lu.
-  internal static class MatchRecorder
+  // jeu (le meme que le systeme de replay), capture APRES le rendu (postfix sur
+  // Engine.Draw), quand il n'est plus la cible active et peut donc etre lu.
+  public class MatchRecorder : IHookable
   {
     private const int Width = 320;
     private const int Height = 240;
@@ -27,20 +29,17 @@ namespace TFModFortRiseRecord
     private static RecorderWriter writer;
     private static object lastLevel;
 
-    internal static void Load()
+    public static void Load(IHarmony harmony)
     {
-      On.Monocle.Engine.Draw += Draw_patch;
+      // Engine.Draw est privee : patch par nom. Postfix pour capturer APRES le rendu.
+      harmony.Patch(
+          AccessTools.DeclaredMethod(typeof(Monocle.Engine), "Draw"),
+          postfix: new HarmonyMethod(Draw_patch)
+      );
     }
 
-    internal static void Unload()
+    private static void Draw_patch(GameTime gameTime)
     {
-      On.Monocle.Engine.Draw -= Draw_patch;
-      StopSession();
-    }
-
-    private static void Draw_patch(On.Monocle.Engine.orig_Draw orig, Monocle.Engine self, GameTime gameTime)
-    {
-      orig(self, gameTime);
       try
       {
         Update(gameTime);

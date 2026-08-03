@@ -1,10 +1,13 @@
 {
 	"name": "MatchRecord",
-	"version": "0.0.1",
-	"required": "4.1.0",
+	"version": "1.0.0",
 	"author": "ebe1.kenobi",
 	"description": "Record a whole match as a PNG image sequence at a configurable FPS.",
 	"dll": "TFModFortRiseRecord.dll",
 	"dependencies": [
+		{
+			"name": "FortRise",
+			"version": "5.3.3"
+		}
 	]
 }
