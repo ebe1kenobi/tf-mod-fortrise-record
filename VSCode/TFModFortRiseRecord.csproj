@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MonoMod" Version="22.5.1.1">
+      <IncludeAssets>compile</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="MonoMod.RuntimeDetour" Version="22.5.1.1">
+      <IncludeAssets>compile</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="TeuJson" Version="3.1.2">
+      <IncludeAssets>compile</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Drawing" />
+    <Reference Include="FNA">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\TowerFall\FNA.dll</HintPath>
+    </Reference>
+    <Reference Include="MMHOOK_TowerFall">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\TowerFall\MMHOOK_TowerFall.dll</HintPath>
+    </Reference>
+    <Reference Include="TeuJson">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\TowerFall\TeuJson.dll</HintPath>
+    </Reference>
+    <Reference Include="TowerFall">
+      <HintPath>C:\Program Files (x86)\Steam\steamapps\common\TowerFall\TowerFall.exe</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+
+</Project>
