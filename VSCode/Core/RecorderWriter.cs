@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Concurrent;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.IO.Compression;
 using System.Text;
 using System.Threading;
 using MSColor = Microsoft.Xna.Framework.Color;
@@ -15,11 +13,16 @@ namespace TFModFortRiseRecord
   internal sealed class FrameJob
   {
     public int FrameIndex;
+    public int Round;          // index du round dans le match (0 pour le premier)
     public MSColor[] Pixels;   // null si l'image n'est pas enregistree
     public int Width;
     public int Height;
     public string InputsLine;  // ligne JSON (inputs.jsonl) ou null
     public string StateLine;   // ligne JSON (state.jsonl) ou null
+
+    // >= 0 : marqueur de fin de round. Traite dans l'ordre de la file, donc
+    // garanti apres l'ecriture de tous les PNG du round.
+    public int ExportGifRound = -1;
   }
 
   // Thread de fond : consomme les FrameJob et fait tout le travail lourd
@@ -34,16 +37,37 @@ namespace TFModFortRiseRecord
 
     private readonly BlockingCollection<FrameJob> queue = new BlockingCollection<FrameJob>();
     private readonly string dir;
+    private readonly CompressionLevel compression;
+    private readonly bool gif;
+    private readonly int gifFps;
+    private readonly int gifEvery;
+    private readonly int gifColors;
     private readonly Thread thread;
     private StreamWriter inputsFile;
     private StreamWriter stateFile;
     public long Dropped { get; private set; }
 
-    public RecorderWriter(string dir)
+    // Les reglages sont figes a l'ouverture de la session : le thread de fond n'a
+    // ainsi pas a relire les settings pendant qu'ils changent.
+    public RecorderWriter(string dir, CompressionLevel compression,
+                          bool gif, int gifFps, int gifEvery, int gifColors)
     {
       this.dir = dir;
+      this.compression = compression;
+      this.gif = gif;
+      this.gifFps = gifFps;
+      this.gifEvery = gifEvery;
+      this.gifColors = gifColors;
       thread = new Thread(Run) { IsBackground = true, Name = "TFRecordWriter" };
       thread.Start();
+    }
+
+    // Marque la fin d'un round. L'encodage se fait sur le thread de fond, apres
+    // que toutes les frames deja enfilees ont ete ecrites sur le disque.
+    public void EnqueueGifExport(int round)
+    {
+      if (!gif) return;
+      Enqueue(new FrameJob { ExportGifRound = round });
     }
 
     public static MSColor[] RentBuffer()
@@ -101,6 +125,13 @@ namespace TFModFortRiseRecord
 
     private void WriteJob(FrameJob job)
     {
+      if (job.ExportGifRound >= 0)
+      {
+        // Non bloquant : l'encodage part sur son propre thread (voir GifExport).
+        GifExport.Post(dir, job.ExportGifRound, gifFps, gifEvery, gifColors);
+        return;
+      }
+
       if (job.Pixels != null)
         SavePng(job);
 
@@ -121,31 +152,57 @@ namespace TFModFortRiseRecord
       }
     }
 
-    // Encodage PNG purement CPU (System.Drawing) : ne necessite pas le
+    // Encodage PNG purement CPU (voir PngEncoder) : ne necessite pas le
     // GraphicsDevice, donc peut tourner sur ce thread de fond.
-    // XNA Color est en RGBA ; Bitmap Format32bppArgb est en BGRA en memoire.
+    // XNA Color est deja en RGBA, l'ordre attendu par PngEncoder.
     private void SavePng(FrameJob job)
     {
       int w = job.Width, h = job.Height;
       MSColor[] px = job.Pixels;
-      byte[] bgra = new byte[w * h * 4];
-      for (int i = 0; i < px.Length; i++)
+      // Le buffer vient du pool et fait toujours PixelCount : ne lire que la
+      // zone reellement couverte par la frame.
+      int count = Math.Min(w * h, px.Length);
+
+      // Le RenderTarget compose est opaque en pratique : on ecrit du RGB (un
+      // quart de donnees en moins, sans perte) en verifiant l'alpha au passage,
+      // et on ne refait une passe en RGBA que si une frame transparente sort.
+      // Le ET vaut 255 si et seulement si tous les alphas valent 255.
+      byte[] rgb = new byte[w * h * 3];
+      int alphaAll = 255;
+      for (int i = 0; i < count; i++)
       {
-        int o = i * 4;
-        bgra[o] = px[i].B;
-        bgra[o + 1] = px[i].G;
-        bgra[o + 2] = px[i].R;
-        bgra[o + 3] = px[i].A;
+        int o = i * 3;
+        rgb[o] = px[i].R;
+        rgb[o + 1] = px[i].G;
+        rgb[o + 2] = px[i].B;
+        alphaAll &= px[i].A;
       }
 
-      using (Bitmap bmp = new Bitmap(w, h, PixelFormat.Format32bppArgb))
+      string path = Path.Combine(dir, RoundPrefix(job.Round) + "frame_" + job.FrameIndex.ToString("D6") + ".png");
+
+      if (alphaAll == 255)
       {
-        BitmapData data = bmp.LockBits(new Rectangle(0, 0, w, h), ImageLockMode.WriteOnly, PixelFormat.Format32bppArgb);
-        try { Marshal.Copy(bgra, 0, data.Scan0, bgra.Length); }
-        finally { bmp.UnlockBits(data); }
-        string path = Path.Combine(dir, "frame_" + job.FrameIndex.ToString("D6") + ".png");
-        bmp.Save(path, ImageFormat.Png);
+        PngEncoder.Write(path, w, h, rgb, 3, compression);
+        return;
       }
+
+      byte[] rgba = new byte[w * h * 4];
+      for (int i = 0; i < count; i++)
+      {
+        int o = i * 4;
+        rgba[o] = px[i].R;
+        rgba[o + 1] = px[i].G;
+        rgba[o + 2] = px[i].B;
+        rgba[o + 3] = px[i].A;
+      }
+      PngEncoder.Write(path, w, h, rgba, 4, compression);
+    }
+
+    // Prefixe commun a tous les fichiers d'un round ("round_00_"), pour que le
+    // tri alphabetique du dossier suive l'ordre de jeu.
+    public static string RoundPrefix(int round)
+    {
+      return "round_" + round.ToString("D2") + "_";
     }
   }
 }

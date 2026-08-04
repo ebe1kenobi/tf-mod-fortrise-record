@@ -16,10 +16,12 @@ namespace TFModFortRiseRecord
 
     public static TFModFortRiseRecordSettings Settings => Instance.GetSettings<TFModFortRiseRecordSettings>()!;
 
-    // Racine des donnees du mod (Saves/<nom du mod>/) pour les logs. FortRise 5 vit
-    // hors du repertoire de TowerFall. (Les enregistrements eux-memes vont dans
-    // Documents/TowerFall/Recordings, cf. MatchRecorder.)
+    // Racine des donnees du mod (Saves/<nom du mod>/) : logs ET enregistrements.
+    // FortRise 5 vit hors du repertoire de TowerFall.
     public static string SavePath => Path.Combine(ModIO.GetRootPath(), "Saves", Instance.Meta.Name);
+
+    // Un sous-dossier par match : Saves/<mod>/Recordings/match_<horodatage>/
+    public static string RecordingsPath => Path.Combine(SavePath, "Recordings");
 
     public TFModFortRiseRecordModule(IModContent content, IModuleContext context, ILogger logger) : base(content, context, logger)
     {

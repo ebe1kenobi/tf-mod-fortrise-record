@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.IO.Compression;
 using FortRise;
 using HarmonyLib;
 using Microsoft.Xna.Framework;
@@ -23,11 +24,13 @@ namespace TFModFortRiseRecord
     private const int Height = 240;
 
     private static bool matchActive;
+    private static bool capturing;
     private static string sessionDir;
     private static int frameIndex;
     private static double accumulator;
     private static RecorderWriter writer;
     private static object lastLevel;
+    private static object endedLogic;
 
     public static void Load(IHarmony harmony)
     {
@@ -36,6 +39,38 @@ namespace TFModFortRiseRecord
           AccessTools.DeclaredMethod(typeof(Monocle.Engine), "Draw"),
           postfix: new HarmonyMethod(Draw_patch)
       );
+      // Fin de round : voir EndRound_prefix.
+      harmony.Patch(
+          AccessTools.DeclaredMethod(typeof(Session), nameof(Session.EndRound)),
+          prefix: new HarmonyMethod(EndRound_prefix)
+      );
+    }
+
+    // Level.Ending est pose des que le round est DECIDE, c'est-a-dire avant que la
+    // mort du dernier joueur ne soit jouee a l'ecran : couper la capture dessus
+    // amputait la fin de chaque round. Session.EndRound arrive au terme du
+    // RoundEndCounter (90 frames, plus l'attente des fantomes), donc apres la mort,
+    // le ralenti et le spotlight, et juste avant que le ReplayViewer ne prenne la
+    // main pour le rewind — qu'on ne veut pas enregistrer.
+    //
+    // On memorise la RoundLogic terminee plutot qu'un simple booleen : elle est
+    // recreee a chaque Session.LevelLoadStart, donc le round suivant se distingue
+    // tout seul, sans remise a zero a gerer.
+    public static void EndRound_prefix(Session __instance)
+    {
+      endedLogic = __instance != null ? __instance.RoundLogic : null;
+
+      // Toutes les frames du round sont deja dans la file : on y ajoute le
+      // marqueur d'export, traite a son tour par le thread de fond.
+      if (writer != null && __instance != null)
+      {
+        try
+        {
+          int round = __instance.RoundIndex < 0 ? 0 : __instance.RoundIndex;
+          writer.EnqueueGifExport(round);
+        }
+        catch (Exception e) { Logger.Error("MatchRecorder.EndRound: " + e); }
+      }
     }
 
     private static void Draw_patch(GameTime gameTime)
@@ -68,12 +103,32 @@ namespace TFModFortRiseRecord
         return;
       }
 
-      // Debut de match : on ouvre une session sur la premiere scene de gameplay.
+      // Entre deux rounds la scene est un LevelLoaderXML : rien a capturer,
+      // mais on ne cloture pas la session (un match = plusieurs rounds).
+      Level level = scene as Level;
+      if (level == null) return;
+
+      bool live = IsRoundLive(level);
+
+      // Debut de match : on ouvre la session au premier round reellement lance,
+      // pas des le chargement du niveau (evite de filmer la cinematique FIGHT!).
       if (!matchActive)
       {
-        if (!(scene is Level)) return;
-        StartSession();
+        if (!live) return;
+        StartSession(settings);
       }
+
+      // Round fige (cinematique de debut ou de fin, pause) : on gele la capture
+      // et on repart d'un accumulateur propre pour ne pas capturer en rafale
+      // au retour.
+      if (live != capturing)
+      {
+        capturing = live;
+        accumulator = 0.0;
+        Logger.Info((live ? "Recording resumed" : "Recording suspended")
+            + " (round " + RoundOf(level) + ", frame " + frameIndex + ")");
+      }
+      if (!live) return;
 
       // Throttle commun (images + inputs + etat) au FPS configure.
       int fps = settings.recordFps;
@@ -84,26 +139,55 @@ namespace TFModFortRiseRecord
       accumulator -= interval;
       if (accumulator > 1.0) accumulator = 0.0; // anti-derive apres un gros lag
 
-      CaptureFrame(settings, scene);
+      CaptureFrame(settings, level);
     }
 
-    private static void CaptureFrame(TFModFortRiseRecordSettings settings, Scene scene)
+    // Vrai uniquement quand le round tourne pour de bon.
+    //
+    // RoundStarted passe a true dans Session.StartRound(), l'appel qui degele
+    // aussi les joueurs a la fin de la cinematique FIGHT! ; le RoundLogic est
+    // recree a chaque Session.LevelLoadStart, donc le flag retombe seul au round
+    // suivant. La borne de fin est posee par EndRound_prefix (voir son commentaire).
+    // Level.Paused couvre toutes les entrees en pause (menu Start, hold-to-pause,
+    // manette debranchee, perte de focus) : Level.HandlePausing les fait toutes
+    // passer par ce setter, et le PauseMenu le remet a false a la reprise.
+    private static bool IsRoundLive(Level level)
     {
-      Level level = scene as Level;
+      if (level.Paused) return false;
+      Session session = level.Session;
+      if (session == null) return false;
+      RoundLogic logic = session.RoundLogic;
+      if (logic == null || !logic.RoundStarted) return false;
+      return !ReferenceEquals(logic, endedLogic);
+    }
+
+    // Index du round courant, tel que le jeu le compte (0 pour le premier).
+    // Incremente par Session.GotoNextRound avant le chargement du niveau suivant,
+    // donc deja a jour quand on capture la premiere frame du round.
+    private static int RoundOf(Level level)
+    {
+      Session session = level.Session;
+      if (session == null) return 0;
+      return session.RoundIndex < 0 ? 0 : session.RoundIndex;
+    }
+
+    private static void CaptureFrame(TFModFortRiseRecordSettings settings, Level level)
+    {
+      int round = RoundOf(level);
 
       // Grille de solides : une seule fois par nouveau niveau (geometrie statique).
-      if (settings.recordState && level != null && !ReferenceEquals(level, lastLevel))
+      if (settings.recordState && !ReferenceEquals(level, lastLevel))
       {
         lastLevel = level;
         try
         {
-          string gridPath = Path.Combine(sessionDir, "level_" + frameIndex.ToString("D6") + ".json");
+          string gridPath = Path.Combine(sessionDir, RecorderWriter.RoundPrefix(round) + "level.json");
           File.WriteAllText(gridPath, StateCapture.BuildLevelGridJson(level));
         }
         catch (Exception e) { Logger.Error("MatchRecorder.grid: " + e); }
       }
 
-      FrameJob job = new FrameJob { FrameIndex = frameIndex, Width = Width, Height = Height };
+      FrameJob job = new FrameJob { FrameIndex = frameIndex, Round = round, Width = Width, Height = Height };
       bool any = false;
 
       if (settings.recordImages)
@@ -118,13 +202,13 @@ namespace TFModFortRiseRecord
 
       if (settings.recordInputs)
       {
-        job.InputsLine = StateCapture.BuildInputsLine(frameIndex);
+        job.InputsLine = StateCapture.BuildInputsLine(frameIndex, round);
         any = true;
       }
 
-      if (settings.recordState && level != null)
+      if (settings.recordState)
       {
-        job.StateLine = StateCapture.BuildStateLine(frameIndex, level);
+        job.StateLine = StateCapture.BuildStateLine(frameIndex, round, level);
         any = true;
       }
 
@@ -159,18 +243,35 @@ namespace TFModFortRiseRecord
       return TFModFortRiseRecordModule.Settings;
     }
 
-    private static void StartSession()
+    // Traduit le reglage utilisateur en niveau zlib. PNG etant sans perte,
+    // ce choix ne joue que sur la taille des fichiers et le CPU du thread
+    // d'ecriture (voir les mesures dans TFModFortRiseRecordSettings).
+    private static CompressionLevel CompressionOf(TFModFortRiseRecordSettings settings)
     {
-      string baseDir = Path.Combine(
-          Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-          "TowerFall", "Recordings");
+      switch (settings.recordPngCompression)
+      {
+        case TFModFortRiseRecordSettings.CompressionFast: return CompressionLevel.Fastest;
+        case TFModFortRiseRecordSettings.CompressionSmallest: return CompressionLevel.SmallestSize;
+        default: return CompressionLevel.Optimal;
+      }
+    }
+
+    private static void StartSession(TFModFortRiseRecordSettings settings)
+    {
+      string baseDir = TFModFortRiseRecordModule.RecordingsPath;
       sessionDir = Path.Combine(baseDir, "match_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
       Directory.CreateDirectory(sessionDir);
       frameIndex = 0;
       accumulator = 0.0;
       lastLevel = null;
-      writer = new RecorderWriter(sessionDir);
+      endedLogic = null;
+      int gifColors, gifEvery;
+      settings.GetGifProfile(out gifColors, out gifEvery);
+      writer = new RecorderWriter(sessionDir, CompressionOf(settings),
+          settings.recordGif && settings.recordImages,
+          settings.recordFps, gifEvery, gifColors);
       matchActive = true;
+      capturing = true;
       Logger.Info("Recording started -> " + sessionDir);
     }
 
@@ -183,8 +284,10 @@ namespace TFModFortRiseRecord
         writer = null;
       }
       matchActive = false;
+      capturing = false;
       sessionDir = null;
       lastLevel = null;
+      endedLogic = null;
     }
   }
 }

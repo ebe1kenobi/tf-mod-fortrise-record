@@ -20,10 +20,10 @@ namespace TFModFortRiseRecord
     }
 
     // Inputs de chaque joueur actif (etat maintenu de la frame).
-    public static string BuildInputsLine(int frameIndex)
+    public static string BuildInputsLine(int frameIndex, int round)
     {
       StringBuilder sb = new StringBuilder(256);
-      sb.Append("{\"f\":").Append(frameIndex).Append(",\"p\":[");
+      sb.Append("{\"f\":").Append(frameIndex).Append(",\"r\":").Append(round).Append(",\"p\":[");
       bool first = true;
       int count = TFGame.Players.Length;
       for (int i = 0; i < count; i++)
@@ -50,10 +50,10 @@ namespace TFModFortRiseRecord
     }
 
     // Etat dynamique : positions/vitesses des joueurs et des fleches.
-    public static string BuildStateLine(int frameIndex, Level level)
+    public static string BuildStateLine(int frameIndex, int round, Level level)
     {
       StringBuilder sb = new StringBuilder(512);
-      sb.Append("{\"f\":").Append(frameIndex).Append(",\"players\":[");
+      sb.Append("{\"f\":").Append(frameIndex).Append(",\"r\":").Append(round).Append(",\"players\":[");
       bool first = true;
       foreach (Entity e in level.Players)
       {

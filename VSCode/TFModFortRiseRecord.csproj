@@ -5,16 +5,20 @@
     <ModLoaderPath>C:\Program Files (x86)\Steam\steamapps\common\TowerFall\FortRise</ModLoaderPath>
 
     <ModVersion>1.0.0</ModVersion>
-    <!-- System.Drawing.Common est Windows-only : on l'assume (mod teste sur Windows).
-         Evite le warning CA1416 a chaque build. -->
-    <NoWarn>CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FortRise.Configuration" Version="1.5.6" />
-    <!-- Encodage PNG pur CPU sur le thread de fond (voir RecorderWriter). -->
-    <PackageReference Include="System.Drawing.Common" Version="8.0.0" />
+    <!-- Encodage GIF (quantification + optimisation inter-images). FortRise resout
+         les dependances d'un mod dans son propre dossier, donc la DLL doit etre
+         livree a cote de celle du mod : d'ou CopyLocalLockFileAssemblies, sans quoi
+         un projet bibliotheque ne la recopie pas dans bin/. -->
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
   </ItemGroup>
+
+  <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
 
   <ItemGroup>
     <Content Include="../ModFile/meta.json">
