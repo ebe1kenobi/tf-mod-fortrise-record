@@ -30,7 +30,7 @@ namespace TFModFortRiseRecord
         //Debugger.Launch();
       }
       Instance = this;
-      TFModFortRiseRecord.Logger.Init(SavePath);
+      TFModFortRiseRecord.Logger.Init(Meta.Name);
 
       foreach (var hookable in Hookables)
       {
