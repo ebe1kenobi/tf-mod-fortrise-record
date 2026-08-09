@@ -220,10 +220,23 @@ namespace TFModFortRiseRecord
     }
 
     // Copie rapide GPU->CPU des pixels dans un buffer emprunte au pool.
+    //
+    // Le tampon est dimensionne sur le render target reel et non sur 320x240 : un
+    // mod qui elargit l'ecran (WiderSet) donne une cible plus grande, et lire une
+    // region plus grande que le tampon faisait ecrire FNA3D au-dela de celui-ci -
+    // le GPU tombait alors en VK_ERROR_DEVICE_LOST.
+    //
+    // La surcharge explicite est preferee a GetData(buf), qui deduit le nombre
+    // d'elements de la longueur du tableau : ici region et tampon sont accordes
+    // dans le meme appel, et ne peuvent plus diverger en silence.
     private static void MSColorFill(RenderTarget2D rt, FrameJob job)
     {
-      var buf = RecorderWriter.RentBuffer();
-      rt.GetData<Microsoft.Xna.Framework.Color>(buf);
+      int count = rt.Width * rt.Height;
+
+      var buf = RecorderWriter.RentBuffer(count);
+      if (buf == null) return;
+
+      rt.GetData<Microsoft.Xna.Framework.Color>(0, null, buf, 0, count);
       job.Pixels = buf;
       job.Width = rt.Width;
       job.Height = rt.Height;

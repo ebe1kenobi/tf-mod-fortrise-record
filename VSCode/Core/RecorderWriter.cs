@@ -31,7 +31,16 @@ namespace TFModFortRiseRecord
   internal sealed class RecorderWriter
   {
     private const int MaxQueued = 240;      // au-dela, on droppe pour borner la memoire
-    private const int PixelCount = 320 * 240;
+
+    // La taille d'une frame n'est PAS une constante : elle vaut 320x240 dans le jeu
+    // d'origine, mais un mod comme WiderSet elargit le render target. La supposer
+    // fixe faisait lire une region plus grande que le tampon fourni a FNA3D, donc
+    // ecrire au-dela - ce qui se terminait en VK_ERROR_DEVICE_LOST.
+    //
+    // Le pool suit donc la taille courante. Elle ne change qu'entre deux sessions
+    // (bascule de mode), et les tampons de l'ancienne taille sont simplement laisses
+    // au ramasse-miettes plutot que recycles.
+    private static int pixelCount;
 
     private static readonly ConcurrentBag<MSColor[]> BufferPool = new ConcurrentBag<MSColor[]>();
 
@@ -70,16 +79,30 @@ namespace TFModFortRiseRecord
       Enqueue(new FrameJob { ExportGifRound = round });
     }
 
-    public static MSColor[] RentBuffer()
+    /// <param name="count">
+    /// Nombre de pixels de la frame a capturer, soit largeur x hauteur du render
+    /// target reel.
+    /// </param>
+    public static MSColor[] RentBuffer(int count)
     {
+      if (count <= 0) return null;
+
+      // Un changement de taille vide le pool de fait : les tampons rendus a
+      // l'ancienne taille ne repassent plus le test de ReturnBuffer.
+      if (count != pixelCount)
+      {
+        pixelCount = count;
+        while (BufferPool.TryTake(out _)) { }
+      }
+
       MSColor[] buf;
-      if (BufferPool.TryTake(out buf)) return buf;
-      return new MSColor[PixelCount];
+      if (BufferPool.TryTake(out buf) && buf.Length == count) return buf;
+      return new MSColor[count];
     }
 
     private static void ReturnBuffer(MSColor[] buf)
     {
-      if (buf != null && buf.Length == PixelCount)
+      if (buf != null && buf.Length == pixelCount)
         BufferPool.Add(buf);
     }
 
@@ -159,8 +182,9 @@ namespace TFModFortRiseRecord
     {
       int w = job.Width, h = job.Height;
       MSColor[] px = job.Pixels;
-      // Le buffer vient du pool et fait toujours PixelCount : ne lire que la
-      // zone reellement couverte par la frame.
+      // Le tampon est desormais dimensionne sur la frame elle-meme, donc w * h et
+      // px.Length coincident. Le minimum reste par prudence : il borne la boucle sur
+      // le tableau reel si une frame arrivait un jour d'une autre source.
       int count = Math.Min(w * h, px.Length);
 
       // Le RenderTarget compose est opaque en pratique : on ecrit du RGB (un
