@@ -18,7 +18,23 @@ namespace TFModFortRiseRecord
 
     public override void Create(ISettingsCreate settings)
     {
+      // L'entree du lecteur de replays. Un bouton ici plutot qu'une lame du menu
+      // principal : les lames se suivent sans interstice, en inserer une obligerait a
+      // deplacer celles des autres mods - et c'est de toute facon dans les reglages du
+      // mod qu'on va chercher ce qu'il sait faire.
+      settings.CreateButton("Watch replays", () =>
+      {
+        var menu = Monocle.Engine.Instance.Scene as TowerFall.MainMenu;
+
+        if (menu != null)
+        {
+          menu.State = FortRise.ModRegisters.MenuState<UIReplayList>();
+        }
+      });
+
       settings.CreateOnOff("Enable recording", recordEnabled, (x) => recordEnabled = x);
+      settings.CreateOnOff("Record versus matches", recordVersus, (x) => recordVersus = x);
+      settings.CreateOnOff("Record co-op (quest / dark world)", recordCoop, (x) => recordCoop = x);
       settings.CreateNumber("Captures per second", recordFps, (x) => recordFps = x, 1, 60);
       settings.CreateOnOff("Record images (PNG)", recordImages, (x) => recordImages = x);
       settings.CreateOptions("PNG compression", OptionName(PngCompressionNames, recordPngCompression), PngCompressionNames, (x) => recordPngCompression = x.Item2);
@@ -31,6 +47,14 @@ namespace TFModFortRiseRecord
     // Interrupteur maitre : rien n'est enregistre si desactive.
     //[SettingsName("Enable recording")]
     public bool recordEnabled { get; set; } = false;
+
+    // Les matchs versus : Last Man Standing, Headhunters, Team Deathmatch.
+    public bool recordVersus { get; set; } = true;
+
+    // Les modes a un ou plusieurs joueurs contre le jeu : Quest et Dark World.
+    // Leur decoupage en rounds n'est pas le meme (voir MatchRecorder) - un round
+    // y est un NIVEAU, et le jeu n'appelle jamais Session.EndRound.
+    public bool recordCoop { get; set; } = true;
 
     // Nombre de captures par seconde (commun aux images, inputs et etat).
     //[SettingsName("Captures per second")]

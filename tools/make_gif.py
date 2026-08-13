@@ -3,7 +3,7 @@
 """
 Assemble les PNG des enregistrements du mod record en GIF animes, UN PAR ROUND.
 
-Par defaut le script traite tous les dossiers match_* situes dans SON PROPRE
+Par defaut le script traite tous les dossiers d'enregistrement situes dans SON PROPRE
 repertoire : on le depose dans Saves/<mod>/Recordings/ et on le lance sans
 argument.
 
@@ -19,7 +19,7 @@ match (et non parmi les PNG), nommes <dossier_du_match>_round_<numero>.gif :
         ...
 
 Usage :
-    python make_gif.py                      # tous les match_* du dossier du script
+    python make_gif.py                      # tous les enregistrements du dossier du script
     python make_gif.py -d chemin/Recordings # autre repertoire de matchs
     python make_gif.py --quality low        # fichiers nettement plus legers
     python make_gif.py --colors 32          # reglage fin de la palette
@@ -155,7 +155,7 @@ def build_gif(frames: list[Path], output: Path, fps: float, scale: int,
 
 
 def process_match(match_dir: Path, gif_dir: Path, args, colors: int, every: int) -> int:
-    """Traite un dossier match_* ; rend le nombre de GIF ecrits.
+    """Traite un dossier d'enregistrement ; rend le nombre de GIF ecrits.
 
     Les GIF ne sont pas deposes parmi les PNG mais regroupes dans gif_dir, et
     prefixes du nom du match pour rester identifiables une fois rassembles.
@@ -184,11 +184,15 @@ def process_match(match_dir: Path, gif_dir: Path, args, colors: int, every: int)
     return written
 
 
+# <mode>_<aaaammjj>_<hhmmss>, le nommage des dossiers d'enregistrement.
+RECORDING_DIR_RE = re.compile(r"^[A-Za-z]+_\d{8}_\d{6}$")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Cree un GIF anime par round pour chaque dossier match_*.")
+        description="Cree un GIF anime par round pour chaque dossier d'enregistrement.")
     parser.add_argument("-d", "--dir", default=None,
-                        help="repertoire contenant les dossiers match_* "
+                        help="repertoire contenant les dossiers d'enregistrement "
                              "(defaut : le repertoire du script)")
     parser.add_argument("--fps", type=float, default=15.0,
                         help="images par seconde du GIF (defaut : 15)")
@@ -229,8 +233,12 @@ def main() -> int:
     # Tous les GIF sont regroupes ici, a cote des dossiers de match et non dedans.
     gif_dir = root / GIF_DIRNAME
 
+    # Un dossier d'enregistrement porte le nom de son mode depuis que le coop est
+    # filme : "headhunters_20260811_204512", "darkworld_...", et "match_..." pour
+    # les enregistrements d'avant. On les reconnait donc a leur horodatage final
+    # plutot qu'a un prefixe fige, sinon un mode de plus passerait a la trappe.
     matches = sorted(d for d in root.iterdir()
-                     if d.is_dir() and d.name.startswith("match_"))
+                     if d.is_dir() and RECORDING_DIR_RE.match(d.name))
     # Tolerance : si on pointe directement sur un dossier de match, on le traite.
     if not matches and group_rounds(root):
         matches = [root]
@@ -239,7 +247,7 @@ def main() -> int:
         gif_dir = root.parent / GIF_DIRNAME
 
     if not matches:
-        sys.exit(f"Aucun dossier match_* dans {root}")
+        sys.exit(f"Aucun dossier d'enregistrement dans {root}")
 
     cadence = "toutes les images" if every == 1 else f"1 image sur {every}"
     print(f"{len(matches)} match(s) dans {root}  ({colors} couleurs, {cadence})")

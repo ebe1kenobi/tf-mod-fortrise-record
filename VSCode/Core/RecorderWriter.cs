@@ -120,6 +120,24 @@ namespace TFModFortRiseRecord
       queue.Add(job);
     }
 
+    /// <summary>
+    /// Attend que la file soit vide, sans arreter l'ecriture.
+    ///
+    /// Sert a relire une manche a l'instant ou elle finit : les images partent sur un
+    /// fil de fond qui a plusieurs secondes de retard, et relire sans attendre ne
+    /// montrerait que le debut. Bornee, parce qu'un disque qui ne suit plus ne doit
+    /// pas figer le jeu - on relira ce qui est arrive.
+    /// </summary>
+    public void WaitForIdle(int millisecondsMax = 2000)
+    {
+      var clock = System.Diagnostics.Stopwatch.StartNew();
+
+      while (queue.Count > 0 && clock.ElapsedMilliseconds < millisecondsMax)
+      {
+        System.Threading.Thread.Sleep(10);
+      }
+    }
+
     // Signale la fin ; le thread draine la file puis se termine.
     public void Complete()
     {

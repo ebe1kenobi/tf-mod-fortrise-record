@@ -12,6 +12,8 @@ namespace TFModFortRiseRecord
 
     internal Type[] Hookables = [
         typeof(MatchRecorder),
+        typeof(MyPauseMenu),
+        typeof(MyRoundResults),
     ];
 
     public static TFModFortRiseRecordSettings Settings => Instance.GetSettings<TFModFortRiseRecordSettings>()!;
@@ -30,12 +32,20 @@ namespace TFModFortRiseRecord
         //Debugger.Launch();
       }
       Instance = this;
-      TFModFortRiseRecord.Logger.Init(Meta.Name);
+      TFModFortRiseRecord.Logger.Init(logger);
 
       foreach (var hookable in Hookables)
       {
         hookable.GetMethod(nameof(IHookable.Load))!.Invoke(null, [context.Harmony]);
       }
+
+      // Les deux ecrans du lecteur. FortRise attribue une valeur de MenuState a
+      // chacun ; ModRegisters.MenuState<T>() la relit a chaque besoin plutot que de
+      // la memoriser, l'ordre d'attribution n'etant pas garanti.
+      context.Registry.MenuStates.RegisterMenuState("ReplayList",
+          new MenuStateConfiguration { MenuStateType = typeof(UIReplayList) });
+      context.Registry.MenuStates.RegisterMenuState("ReplayPlayer",
+          new MenuStateConfiguration { MenuStateType = typeof(UIReplayPlayer) });
     }
 
     public override ModuleSettings CreateSettings()
