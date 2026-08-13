@@ -40,14 +40,16 @@ namespace TFModFortRiseRecord
 
     public override void Create()
     {
-      MainMenu.MenuState listState = ModRegisters.MenuState<UIReplayList>();
+      // Retour a la liste du JOUR et non a celle des jours : on revient d'ou l'on
+      // vient, ce qui evite de refaire tout le chemin pour voir la partie suivante.
+      MainMenu.MenuState listState = ModRegisters.MenuState<UIReplayDay>();
 
       Main.BackState = listState;
       Main.TweenBGCameraToY(2);
       Main.ToStartSelected = null;
       Main.MaxUICameraY = 0f;
 
-      reader = ReplayReader.Open(UIReplayList.Opening);
+      reader = ReplayReader.Open(UIReplayDay.Opening);
 
       if (reader == null)
       {

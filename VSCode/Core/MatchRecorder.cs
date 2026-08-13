@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using FortRise;
@@ -436,10 +437,19 @@ namespace TFModFortRiseRecord
     {
       string baseDir = TFModFortRiseRecordModule.RecordingsPath;
 
-      // Le mode nomme le dossier : "darkworld_...", "quest_...", "headhunters_...".
-      // Avec le coop, "match_" ne disait plus de quoi il s'agissait, et il fallait
-      // ouvrir un GIF pour le savoir.
-      sessionDir = Path.Combine(baseDir, ModeTag(level) + "_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+      // Un dossier par JOUR, puis un par partie dedans.
+      //
+      // Tout etait a plat, un dossier par partie : apres quelques soirees, retrouver
+      // celle de mardi soir demandait de lire des horodatages colles au nom du mode.
+      // La date est le premier critere de recherche - on cherche "la partie d'hier"
+      // bien avant "la partie de headhunters" - donc c'est elle qui doit ranger.
+      //
+      // Le mode nomme le dossier de la partie : "darkworld_...", "quest_...",
+      // "headhunters_...". Avec le coop, "match_" ne disait plus de quoi il s'agissait,
+      // et il fallait ouvrir un GIF pour le savoir.
+      DateTime now = DateTime.Now;
+      sessionDir = Path.Combine(baseDir, now.ToString(DayFormat),
+          ModeTag(level) + "_" + now.ToString("HHmmss"));
       Directory.CreateDirectory(sessionDir);
       WriteFps(sessionDir, settings.recordFps);
       frameIndex = 0;
@@ -454,6 +464,82 @@ namespace TFModFortRiseRecord
       matchActive = true;
       capturing = true;
       Logger.Info("Recording started -> " + sessionDir);
+    }
+
+    /// <summary>
+    /// Le format d'un dossier de jour. Tirets et non colle : "2026-08-13" se lit, et
+    /// l'ordre alphabetique y reste l'ordre chronologique.
+    /// </summary>
+    public const string DayFormat = "yyyy-MM-dd";
+
+    /// <summary>
+    /// Range les enregistrements a plat dans leur dossier de jour.
+    ///
+    /// Une seule fois, au demarrage, sans rien ecraser. Une migration plutot qu'un
+    /// lecteur qui saurait lire les deux dispositions : deux dispositions, c'est deux
+    /// chemins de code a tenir d'accord pour toujours, alors que le nom porte deja la
+    /// date - "quest_20260812_100059" donne son jour sans qu'on ait a le deviner.
+    ///
+    /// Un dossier dont le nom ne suit pas le motif est laisse ou il est : mieux vaut
+    /// un enregistrement mal range qu'un enregistrement perdu.
+    /// </summary>
+    public static void MigrateToDayFolders()
+    {
+      try
+      {
+        string root = TFModFortRiseRecordModule.RecordingsPath;
+
+        if (!Directory.Exists(root))
+        {
+          return;
+        }
+
+        int moved = 0;
+
+        foreach (string dir in Directory.GetDirectories(root))
+        {
+          string name = Path.GetFileName(dir);
+
+          // Deja un dossier de jour : rien a faire.
+          if (DateTime.TryParseExact(name, DayFormat, CultureInfo.InvariantCulture,
+                  DateTimeStyles.None, out _))
+          {
+            continue;
+          }
+
+          // "<mode>_<yyyyMMdd>_<HHmmss>" : le jour est l'avant-dernier morceau.
+          string[] parts = name.Split('_');
+
+          if (parts.Length < 3
+              || !DateTime.TryParseExact(parts[parts.Length - 2], "yyyyMMdd",
+                     CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime day))
+          {
+            continue;
+          }
+
+          string mode = string.Join("_", parts, 0, parts.Length - 2);
+          string target = Path.Combine(root, day.ToString(DayFormat),
+              mode + "_" + parts[parts.Length - 1]);
+
+          if (Directory.Exists(target))
+          {
+            continue;
+          }
+
+          Directory.CreateDirectory(Path.GetDirectoryName(target));
+          Directory.Move(dir, target);
+          moved++;
+        }
+
+        if (moved > 0)
+        {
+          Logger.Info("[Replay] " + moved + " enregistrement(s) ranges par jour");
+        }
+      }
+      catch (Exception e)
+      {
+        Logger.Info("[Replay] rangement par jour impossible : " + e.Message);
+      }
     }
 
     /// <summary>Le nom du fichier qui porte la cadence d'un enregistrement.</summary>

@@ -39,11 +39,16 @@ namespace TFModFortRiseRecord
         hookable.GetMethod(nameof(IHookable.Load))!.Invoke(null, [context.Harmony]);
       }
 
-      // Les deux ecrans du lecteur. FortRise attribue une valeur de MenuState a
+      // Les enregistrements d'avant sont a plat : on les range par jour, une fois.
+      MatchRecorder.MigrateToDayFolders();
+
+      // Les trois ecrans du lecteur. FortRise attribue une valeur de MenuState a
       // chacun ; ModRegisters.MenuState<T>() la relit a chaque besoin plutot que de
       // la memoriser, l'ordre d'attribution n'etant pas garanti.
       context.Registry.MenuStates.RegisterMenuState("ReplayList",
           new MenuStateConfiguration { MenuStateType = typeof(UIReplayList) });
+      context.Registry.MenuStates.RegisterMenuState("ReplayDay",
+          new MenuStateConfiguration { MenuStateType = typeof(UIReplayDay) });
       context.Registry.MenuStates.RegisterMenuState("ReplayPlayer",
           new MenuStateConfiguration { MenuStateType = typeof(UIReplayPlayer) });
     }
