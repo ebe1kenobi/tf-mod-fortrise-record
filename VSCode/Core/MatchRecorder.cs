@@ -572,18 +572,76 @@ namespace TFModFortRiseRecord
       }
     }
 
-    /// <summary>Nom de mode utilisable dans un chemin, en minuscules.</summary>
+    /// <summary>
+    /// Nom de mode utilisable dans un chemin, en minuscules.
+    ///
+    /// <c>MatchSettings.Mode</c> est un enum, mais un mode ajoute par un mod - foot,
+    /// chat, respawn, scroll - recoit une valeur au-dela de celles declarees :
+    /// <c>ToString()</c> rend alors le NOMBRE brut. Les enregistrements sortaient donc
+    /// dans des dossiers nommes "12_143052", impossibles a relire un mois plus tard.
+    ///
+    /// FortRise range le vrai nom dans <c>CustomVersusModeName</c> des que
+    /// <c>IsCustom</c> est vrai : c'est lui qu'on prend en premier. Meme correction que
+    /// dans WinCounters, qui ecrivait ses fichiers de statistiques avec le meme defaut.
+    /// </summary>
     private static string ModeTag(Level level)
     {
       try
       {
         MatchSettings match = level != null && level.Session != null ? level.Session.MatchSettings : null;
-        return match == null ? "match" : match.Mode.ToString().ToLowerInvariant();
+
+        // Une partie lancee depuis le menu peut avoir ses reglages la et pas encore
+        // dans la session : on prend celui des deux qui existe.
+        if (match == null)
+        {
+          match = MainMenu.VersusMatchSettings;
+        }
+
+        if (match == null)
+        {
+          return "match";
+        }
+
+        if (match.IsCustom && !string.IsNullOrEmpty(match.CustomVersusModeName))
+        {
+          return Sanitize(match.CustomVersusModeName);
+        }
+
+        // Filet pour une valeur hors enum sans IsCustom : mieux vaut un libelle
+        // reconnaissable qu'un nombre nu au milieu d'un nom de dossier.
+        if (!Enum.IsDefined(typeof(Modes), match.Mode))
+        {
+          return "mode" + (int)match.Mode;
+        }
+
+        return match.Mode.ToString().ToLowerInvariant();
       }
       catch (Exception)
       {
         return "match";
       }
+    }
+
+    /// <summary>
+    /// Un nom de mode reduit a ce qui passe dans un nom de dossier.
+    ///
+    /// Les noms des modes ajoutes sont libres : espaces, accents, ponctuation. On ne
+    /// garde que lettres et chiffres - le tiret bas est ecarte lui aussi, car c'est le
+    /// separateur dont <c>MigrateToDayFolders</c> se sert pour relire ces noms.
+    /// </summary>
+    private static string Sanitize(string name)
+    {
+      var kept = new System.Text.StringBuilder(name.Length);
+
+      foreach (char c in name.ToLowerInvariant())
+      {
+        if (char.IsLetterOrDigit(c) && c < 128)
+        {
+          kept.Append(c);
+        }
+      }
+
+      return kept.Length > 0 ? kept.ToString() : "match";
     }
 
     private static void StopSession()
