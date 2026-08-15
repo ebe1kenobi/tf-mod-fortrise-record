@@ -19,12 +19,18 @@ Data and log files live in `<TowerFall>/FortRise/Saves/MatchRecord/` and `<Tower
 Everything is driven from the mod settings; there is no key to remember. Recording
 starts on the first round played and stops on returning to the menu.
 
+<img width="683" height="561" alt="image" src="https://github.com/user-attachments/assets/7c0def81-0313-4968-a111-9bc4adc264b7" />
+
+
 **One match = one folder**, named after the mode it recorded:
 `<TowerFall>/FortRise/Saves/MatchRecord/Recordings/<mode>_<timestamp>/` - for
 instance `headhunters_20260811_204512/` or `darkworld_20260811_211003/`.
 
 Only live play is captured: the `FIGHT!` cutscene, pauses and between-round loading
 are excluded, while the last player's death is included.
+<img width="987" height="718" alt="image" src="https://github.com/user-attachments/assets/58bb21b2-2442-4f52-a422-a6ceac6c42ba" />
+
+
 
 ### Versus and co-op
 
@@ -61,6 +67,10 @@ Two ways in, and they show the same PNG frames.
 the vanilla guides. It replays the round that just ended, over the level, and hands the
 results screen back untouched.
 
+
+
+<img width="962" height="462" alt="image" src="https://github.com/user-attachments/assets/573ece84-1134-483b-9d26-6e2aeefe6a63" />
+
 `BACK` because it is the only key that screen never reads. Every other one is taken:
 `CONFIRM` continues, `ALT` runs the game's own replay, `SAVE REPLAY` saves it - and that
 last one is the same physical button as `ALT2`, on which another mod already opens its
@@ -75,6 +85,8 @@ round you are in, without leaving the match: opening the menu player from a runn
 would abandon it. The end-of-match menu carries the same item as `WATCH MATCH REPLAY`,
 and there it plays the whole match, which is by then complete. Both work in solo modes
 too, where a round is a wave.
+
+<img width="969" height="725" alt="image" src="https://github.com/user-attachments/assets/cc6b6a3b-ba2e-4018-9f46-c9d30a304684" />
 
 Do not confuse either with the game's own `REPLAY` on the results screen. That one
 replays the last few seconds from the game *state* - a slow motion of the action, no
