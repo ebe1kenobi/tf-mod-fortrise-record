@@ -19,7 +19,7 @@ Data and log files live in `<TowerFall>/FortRise/Saves/MatchRecord/` and `<Tower
 Everything is driven from the mod settings; there is no key to remember. Recording
 starts on the first round played and stops on returning to the menu.
 
-<img width="683" height="561" alt="image" src="https://github.com/user-attachments/assets/7c0def81-0313-4968-a111-9bc4adc264b7" />
+<img width="969" height="725" alt="image" src="https://github.com/user-attachments/assets/cc6b6a3b-ba2e-4018-9f46-c9d30a304684" />
 
 
 **One match = one folder**, named after the mode it recorded:
@@ -86,7 +86,8 @@ would abandon it. The end-of-match menu carries the same item as `WATCH MATCH RE
 and there it plays the whole match, which is by then complete. Both work in solo modes
 too, where a round is a wave.
 
-<img width="969" height="725" alt="image" src="https://github.com/user-attachments/assets/cc6b6a3b-ba2e-4018-9f46-c9d30a304684" />
+<img width="683" height="561" alt="image" src="https://github.com/user-attachments/assets/7c0def81-0313-4968-a111-9bc4adc264b7" />
+
 
 Do not confuse either with the game's own `REPLAY` on the results screen. That one
 replays the last few seconds from the game *state* - a slow motion of the action, no
