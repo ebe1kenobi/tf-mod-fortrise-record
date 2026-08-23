@@ -335,9 +335,66 @@ namespace TFModFortRiseRecord
       return session.RoundIndex < 0 ? 0 : session.RoundIndex;
     }
 
+    /// <summary>Derniere manche pour laquelle la carte a ete ecrite, ou -1.</summary>
+    private static int cardedRound = -1;
+
+    /// <summary>
+    /// Ecrit la page noire "ROUND N" au premier passage d'une nouvelle manche.
+    ///
+    /// Elle porte le prefixe de la manche QUI COMMENCE et l'index d'image courant :
+    /// elle tombe donc, au tri alphabetique du dossier, juste avant la premiere image
+    /// de cette manche. Le lecteur du mod comme le GIF la voient sans rien connaitre
+    /// d'elle - ce sont des frames comme les autres.
+    ///
+    /// Rien avant la premiere manche : on annonce une COUPURE, et il n'y en a pas
+    /// avant le debut.
+    /// </summary>
+    private static void WriteRoundCard(TFModFortRiseRecordSettings settings, int round)
+    {
+      if (!settings.recordImages || writer == null || round == cardedRound)
+      {
+        return;
+      }
+
+      bool first = cardedRound < 0;
+      cardedRound = round;
+
+      if (first)
+      {
+        return;
+      }
+
+      try
+      {
+        for (int i = 0; i < RoundCard.Frames; i++)
+        {
+          var job = new FrameJob
+          {
+            FrameIndex = frameIndex,
+            Round = round,
+            Width = Width,
+            Height = Height,
+            Pixels = RecorderWriter.RentBuffer(Width * Height)
+          };
+
+          RoundCard.Paint(job.Pixels, Width, Height, round + 1);
+          writer.Enqueue(job);
+          frameIndex++;
+        }
+
+        Logger.Info("[Replay] carte de manche " + (round + 1) + " ecrite");
+      }
+      catch (Exception e)
+      {
+        // Une carte manquante n'abime pas l'enregistrement : on continue de filmer.
+        Logger.Info("[Replay] carte de manche impossible : " + e.Message);
+      }
+    }
+
     private static void CaptureFrame(TFModFortRiseRecordSettings settings, Level level)
     {
       int round = RoundOf(level);
+      WriteRoundCard(settings, round);
 
       // Grille de solides : une seule fois par nouveau niveau (geometrie statique).
       if (settings.recordState && !ReferenceEquals(level, lastLevel))
@@ -451,6 +508,9 @@ namespace TFModFortRiseRecord
       sessionDir = Path.Combine(baseDir, now.ToString(DayFormat),
           ModeTag(level) + "_" + now.ToString("HHmmss"));
       Directory.CreateDirectory(sessionDir);
+
+      // Une nouvelle session repart sans carte : la premiere manche n'en a pas.
+      cardedRound = -1;
       WriteFps(sessionDir, settings.recordFps);
       frameIndex = 0;
       accumulator = 0.0;

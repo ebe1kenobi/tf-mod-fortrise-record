@@ -29,6 +29,8 @@ namespace TFModFortRiseRecord
     private const float SEEK_SECONDS = 2f;
 
     private ReplayReader reader;
+    private ReplayClock clock;
+    private ReplayTimeRate timeRate;
     private bool paused;
     private int speed = NORMAL_SPEED;
     private float carry;
@@ -58,6 +60,11 @@ namespace TFModFortRiseRecord
       }
 
       reader.Start();
+      clock = new ReplayClock("menu", reader.Fps);
+
+      // Le mod accelerate peut avoir laisse le temps de jeu au double ou au triple en
+      // quittant une partie. Voir ReplayTimeRate.
+      timeRate.Hold();
 
       paused = false;
       speed = NORMAL_SPEED;
@@ -73,6 +80,7 @@ namespace TFModFortRiseRecord
       // tourner tiendrait un fichier ouvert et une texture vivante pour rien.
       reader?.Dispose();
       reader = null;
+      timeRate.Release();
     }
 
     /// <summary>
@@ -98,17 +106,12 @@ namespace TFModFortRiseRecord
         return;
       }
 
-      // La vitesse est un NOMBRE D'IMAGES par image de jeu, avec report : a 0,25 on
-      // avance d'une image tous les quatre rafraichissements, sans jamais deriver.
-      //
-      // Le facteur ramene la cadence de PRISE DE VUE - quinze images par seconde par
-      // defaut - a celle du jeu. Sans lui, x1 defilait quatre fois trop vite.
-      carry += Speeds[speed] * (reader.Fps / 60f) * Engine.TimeMult;
+      // La cadence de PRISE DE VUE, mesuree sur l'horloge et non sur le temps de jeu.
+      // Voir ReplayClock.
+      int take = clock.Take(Speeds[speed], ref carry);
 
-      while (carry >= 1f)
+      for (int i = 0; i < take; i++)
       {
-        carry -= 1f;
-
         if (!reader.Advance())
         {
           // Rien de pret : le disque n'a pas suivi. On garde l'image precedente et on

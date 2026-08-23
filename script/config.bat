@@ -4,13 +4,13 @@ set TOWERFALL_DRIVE=C:
 set BUILD_NAME=TFModFortRiseRecord
 set DLL_MOD_FILE_NAME=TFModFortRiseRecord.dll
 set PDB_MOD_FILE_NAME=TFModFortRiseRecord.pdb
-set MODULE_DIR_NAME=tf-mod-fortrise-record
+set MODULE_DIR_NAME=Ebe1.Record
 
 set REPO_PATH=D:\__dev\code\tf-mod-fortrise-record\
 set REPO_SCRIPT_PATH=%REPO_PATH%script\
 set REPO_BUILD_PATH=%REPO_PATH%VSCode\bin\Debug\net10.0\
 set REPO_RELEASE_PATH=%REPO_PATH%release\
-set REPO_RELEASE_MOD_PATH=%REPO_RELEASE_PATH%\tf-mod-fortrise-record\
+set REPO_RELEASE_MOD_PATH=%REPO_RELEASE_PATH%%MODULE_DIR_NAME%\
 
 set TOWERFALL_PATH="C:\Program Files (x86)\Steam\steamapps\common\TowerFall\FortRise\"
 set TOWERFALL_MODS_PATH=%TOWERFALL_PATH%Mods\

@@ -46,16 +46,21 @@ namespace TFModFortRiseRecord
 
     private readonly ReplayReader reader;
     private readonly Action onClose;
+    private readonly ReplayClock clock;
 
     private bool paused;
     private int speed = NORMAL_SPEED;
     private float carry;
 
-    private ReplayOverlay(ReplayReader reader, Action onClose) : base(LAYER)
+    /// <summary>Le temps de jeu qu'on emprunte le temps de regarder. Voir ReplayTimeRate.</summary>
+    private ReplayTimeRate timeRate;
+
+    private ReplayOverlay(ReplayReader reader, Action onClose, string label) : base(LAYER)
     {
       Depth = DEPTH;
       this.reader = reader;
       this.onClose = onClose;
+      clock = new ReplayClock(label, reader.Fps);
     }
 
     public static bool IsOpen => Current != null && Current.Scene == Engine.Instance.Scene;
@@ -104,7 +109,7 @@ namespace TFModFortRiseRecord
 
       reader.Start();
 
-      var overlay = new ReplayOverlay(reader, onClose);
+      var overlay = new ReplayOverlay(reader, onClose, wholeMatch ? "match" : "manche");
       Current = overlay;
       level.Add(overlay);
 
@@ -112,10 +117,17 @@ namespace TFModFortRiseRecord
       return true;
     }
 
+    public override void Added()
+    {
+      base.Added();
+      timeRate.Hold();
+    }
+
     public override void Removed()
     {
       base.Removed();
 
+      timeRate.Release();
       reader?.Dispose();
 
       if (Current == this)
@@ -187,15 +199,12 @@ namespace TFModFortRiseRecord
         return;
       }
 
-      // La cadence de PRISE DE VUE et non celle du jeu : le mod filme a quinze images
-      // par seconde par defaut. Les rejouer au rythme du jeu les faisait defiler quatre
-      // fois trop vite, et x1 ne voulait alors plus rien dire.
-      carry += Speeds[speed] * (reader.Fps / 60f) * Engine.TimeMult;
+      // La cadence de PRISE DE VUE, mesuree sur l'horloge et non sur le temps de jeu.
+      // Voir ReplayClock.
+      int take = clock.Take(Speeds[speed], ref carry);
 
-      while (carry >= 1f)
+      for (int i = 0; i < take; i++)
       {
-        carry -= 1f;
-
         if (!reader.Advance())
         {
           carry = 0f;

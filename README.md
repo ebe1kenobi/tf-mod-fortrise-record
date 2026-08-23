@@ -128,13 +128,39 @@ widens the game - the frames are then 320 across.
 The one case it does not cover is playing a recording taken wide on a game running
 narrow: 50 pixels are then cropped on each side.
 
-Speed `x1` is real time, and a seek is two real seconds - not two seconds' worth of
-game frames. The recording is taken at the **configured** rate, 15 frames per second by
-default, not at the game's 60: replaying it at the game's rate ran it four times too
-fast and made a "two second" seek jump eight. The rate is therefore written next to the
-frames, in `fps.txt`, when the recording starts - the setting may have changed since,
-and it is the rate the pictures were *taken* at that counts. Recordings made before
-that file existed are read as 15, the default they almost certainly used.
+### Speed x1 means real time
+
+A seek is two real seconds, not two seconds' worth of game frames. The recording is taken
+at the **configured** rate, 15 frames per second by default, not at the game's 60:
+replaying it at the game's rate ran it four times too fast and made a "two second" seek
+jump eight. The rate is therefore written next to the frames, in `fps.txt`, when the
+recording starts - the setting may have changed since, and it is the rate the pictures
+were *taken* at that counts. Recordings made before that file existed are read as 15, the
+default they almost certainly used.
+
+**Playback runs on the clock, not on game time.** It used to advance on
+`Engine.TimeMult`, which is *game* time: the engine bends it - halved during an orb slow
+motion, following the real length of a frame when it stretches, forced to one when the
+game thinks it is behind. A replay has no reason to follow any of that, so it counts
+`Engine.DeltaTicks`, the one measure the engine never retouches.
+
+That mattered in practice. The **Accelerate** mod raises `Engine.TimeRate`, and it does so
+exactly where you watch a replay - the round results screen, the end-of-match screen, the
+rematch. A whole-match replay played back at two or three times speed for that reason
+alone.
+
+So the replay also **takes game time back to x1 while it is open, and hands back the value
+it found** when it closes - the value it found, not the value one: returning one would
+silently undo Accelerate's work on the screen you came from. The frame rate no longer
+depends on it, but everything else did: the level behind the window, its particles, its
+animations, and the key repeat in the window itself all ran at triple speed.
+
+### A black page between rounds
+
+A whole-match replay - and the per-match GIF - inserts a black `ROUND N` card at each new
+round, about a second and a half of it. Rounds otherwise ran into each other with nothing
+to mark the seam, which is unreadable on a five-round match. The card is painted into the
+frame buffer from a hand-coded 3x5 glyph table: no font, no atlas, nothing to ship.
 
 ### Why the PNG frames and not the GIF
 
